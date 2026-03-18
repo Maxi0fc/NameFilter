@@ -13,27 +13,22 @@
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
-  <!-- NuGet packages — these are downloaded automatically -->
+  <!-- NuGet packages - these are downloaded automatically -->
   <ItemGroup>
     <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.*" />
     <PackageReference Include="BepInEx.Core" Version="6.0.0-be.*" />
   </ItemGroup>
 
-  <!-- 
-    Reference to Among Us game files.
-    IMPORTANT: Change this path to where Among Us is installed on YOUR computer.
-    Default Steam path is shown below.
-    After installing BepInEx, the interop folder will be generated automatically.
-  -->
+  <!-- Reference to Among Us game files from libs folder -->
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Among Us\BepInEx\interop\Assembly-CSharp.dll</HintPath>
+      <HintPath>libs\Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
 
-  <!-- Copy the built DLL to the BepInEx plugins folder automatically after build -->
-  <Target Name="CopyToPlugins" AfterTargets="Build">
+  <!-- Copy the built DLL to the BepInEx plugins folder automatically after build (local only) -->
+  <Target Name="CopyToPlugins" AfterTargets="Build" Condition="'$(CI)' == ''">
     <Copy
       SourceFiles="$(OutputPath)$(AssemblyName).dll"
       DestinationFolder="C:\Program Files (x86)\Steam\steamapps\common\Among Us\BepInEx\plugins\"
