@@ -17,7 +17,7 @@ namespace NameFilter
         internal static Harmony Harmony = new Harmony(PluginGuid);
         internal static BepInEx.Logging.ManualLogSource? Logger;
 
-        // Stores previous names per player ID
+        // Stores previous names per client ID
         internal static Dictionary<int, string> PreviousNames = new Dictionary<int, string>();
 
         public override void Load()
@@ -28,22 +28,23 @@ namespace NameFilter
         }
 
         // Kicks players with banned names when joining
-        [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.HandleJoinedGame))]
+        [HarmonyPatch(typeof(AmongUsClient), nameof(AmongUsClient.OnPlayerJoined))]
         public static class PlayerJoinPatch
         {
-            public static void Postfix(PlayerControl instance)
+            public static void Postfix(AmongUsClient __instance, [HarmonyArgument(0)] ClientData client)
             {
                 if (!AmongUsClient.Instance.AmHost) return;
-                if (instance.AmOwner) return;
+                if (client.Character == null) return;
+                if (client.Character.AmOwner) return;
 
-                string playerName = instance.Data.PlayerName;
-                PreviousNames[instance.OwnerId] = playerName;
+                string playerName = client.PlayerName;
+                PreviousNames[client.Id] = playerName;
 
                 if (NameChecker.IsBanned(playerName, out string matchedWord))
                 {
                     Logger?.LogInfo($"[NameFilter] Kicking player with disallowed name: {playerName}");
 
-                    AmongUsClient.Instance.KickPlayer(instance.OwnerId, false);
+                    AmongUsClient.Instance.KickPlayer(client.Id, false);
 
                     HudManager.Instance.Chat.AddChat(
                         PlayerControl.LocalPlayer,
@@ -57,23 +58,23 @@ namespace NameFilter
         [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.RpcSetName))]
         public static class PlayerNameChangePatch
         {
-            public static void Prefix(PlayerControl instance, string name)
+            public static void Prefix(PlayerControl __instance, string name)
             {
                 // Save old name before it changes
-                if (!PreviousNames.ContainsKey(instance.OwnerId))
-                    PreviousNames[instance.OwnerId] = instance.Data.PlayerName;
+                if (!PreviousNames.ContainsKey(__instance.OwnerId))
+                    PreviousNames[__instance.OwnerId] = __instance.Data.PlayerName;
             }
 
-            public static void Postfix(PlayerControl instance, string name)
+            public static void Postfix(PlayerControl __instance, string name)
             {
                 if (!AmongUsClient.Instance.AmHost) return;
-                if (instance.AmOwner) return;
+                if (__instance.AmOwner) return;
 
-                string oldName = PreviousNames.ContainsKey(instance.OwnerId)
-                    ? PreviousNames[instance.OwnerId]
+                string oldName = PreviousNames.ContainsKey(__instance.OwnerId)
+                    ? PreviousNames[__instance.OwnerId]
                     : "Unknown";
 
-                PreviousNames[instance.OwnerId] = name;
+                PreviousNames[__instance.OwnerId] = name;
 
                 if (NameChecker.IsBanned(name, out string matchedWord))
                 {
