@@ -38,7 +38,7 @@
       <Private>false</Private>
     </Reference>
     <Reference Include="TownOfUs">
-      <HintPath>libs\TownOfUs.dll</HintPath>
+      <HintPath>libs\TownOfUsMira.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
