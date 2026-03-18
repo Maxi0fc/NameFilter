@@ -1,9 +1,10 @@
-using BepInEx;
+﻿using BepInEx;
 using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
 using UnityEngine;
 using System.Collections.Generic;
 using InnerNet;
+using TownOfUs.Utilities;
 
 namespace NameFilter
 {
@@ -44,9 +45,10 @@ namespace NameFilter
 
                     AmongUsClient.Instance.KickPlayer(client.Id, false);
 
-                    HudManager.Instance.Chat.AddChat(
-                        PlayerControl.LocalPlayer,
-                        $"[NameFilter] <color=#FF0000>{playerName} was kicked due to a disallowed name.</color>"
+                    MiscUtils.AddFakeChat(
+                        PlayerControl.LocalPlayer.Data,
+                        "<color=#FF0000>NameFilter</color>",
+                        $"<color=#FF0000>{playerName}</color> was kicked due to a disallowed name."
                     );
                 }
             }
@@ -76,9 +78,10 @@ namespace NameFilter
                 {
                     Logger?.LogInfo($"[NameFilter] Player changed to banned name: {name}");
 
-                    HudManager.Instance.Chat.AddChat(
-                        PlayerControl.LocalPlayer,
-                        $"[NameFilter] Warning: <color=#FF0000>{oldName}</color> changed their name to <color=#FF0000>{name}</color> which is disallowed."
+                    MiscUtils.AddFakeChat(
+                        PlayerControl.LocalPlayer.Data,
+                        "<color=#FF0000>⚠️ NameFilter Warning</color>",
+                        $"<color=#FF0000>{oldName}</color> changed their name to <color=#FF0000>{name}</color> which is disallowed."
                     );
                 }
             }
