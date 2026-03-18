@@ -15,8 +15,8 @@
 
   <!-- NuGet packages — these are downloaded automatically -->
   <ItemGroup>
-    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.*" />
-    <PackageReference Include="BepInEx.Core" Version="5.*" />
+    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.*" />
+    <PackageReference Include="BepInEx.Core" Version="6.0.0-be.*" />
   </ItemGroup>
 
   <!-- 
