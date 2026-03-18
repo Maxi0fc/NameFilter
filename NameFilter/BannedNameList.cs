@@ -3,7 +3,7 @@ namespace NameFilter
     /// <summary>
     /// Hardcoded list of banned words.
     /// Add or remove words here and recompile the mod to update the filter.
-    /// WARNING: This file contains offensive slurs for filtering purposes.
+    /// WARNING:  This file contains offensive slurs for filtering purposes.
     /// </summary>
     public static class BannedNameList
     {
