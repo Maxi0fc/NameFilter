@@ -80,8 +80,8 @@ namespace NameFilter
 
                     MiscUtils.AddFakeChat(
                         PlayerControl.LocalPlayer.Data,
-                        "<color=#FF0000>⚠️ NameFilter Warning</color>",
-                        $"<color=#FF0000>{oldName}</color> changed their name to <color=#FF0000>{name}</color> which is disallowed."
+                        "<color=#FF0000>NameFilter Warning</color>",
+                        $"<color=#FF0000>{oldName}</color>\nchanged their name to <color=#FF0000>{name}</color>\nwhich is disallowed."
                     );
                 }
             }
