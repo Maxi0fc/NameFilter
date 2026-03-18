@@ -9,8 +9,8 @@ namespace NameFilter
     [BepInProcess("Among Us.exe")]
     public class NameFilterPlugin : BasePlugin
     {
-        public const string PluginGuid    = "com.namefilter.plugin";
-        public const string PluginName    = "NameFilter";
+        public const string PluginGuid = "com.namefilter.plugin";
+        public const string PluginName = "NameFilter";
         public const string PluginVersion = "1.0.0";
 
         internal static Harmony Harmony = new Harmony(PluginGuid);
@@ -18,50 +18,50 @@ namespace NameFilter
         public override void Load()
         {
             Harmony.PatchAll();
-            Log.LogInfo($"{PluginName} {PluginVersion} laddad!");
+            Log.LogInfo($"{PluginName} {PluginVersion} loaded!");
         }
-    }
 
-    /// <summary>
-    /// Hookar in i PlayerJoinedGame och kontrollerar namnet direkt när någon joinar.
-    /// </summary>
-    [HarmonyPatch(typeof(LobbyBehaviour), nameof(LobbyBehaviour.HandleMessage))]
-    public static class PlayerJoinPatch
-    {
-        public static void Postfix(LobbyBehaviour __instance)
+        /// <summary>
+        /// Hooks into LobbyBehaviour.Start and checks player names when the lobby starts.
+        /// </summary>
+        [HarmonyPatch(typeof(LobbyBehaviour), nameof(LobbyBehaviour.Start))]
+        public static class PlayerJoinPatch
         {
-            // Bara hosten ska köra filtret
-            if (!AmongUsClient.Instance.AmHost) return;
-
-            foreach (PlayerControl player in PlayerControl.AllPlayerControls)
+            public static void Postfix(LobbyBehaviour __instance)
             {
-                // Hoppa över lokala spelaren (hosten själv)
-                if (player.IsLocal) continue;
+                // Only the host should run the filter
+                if (!AmongUsClient.Instance.AmHost) return;
 
-                string playerName = player.Data.PlayerName;
-
-                if (NameChecker.IsBanned(playerName, out string matchedWord))
+                foreach (PlayerControl player in PlayerControl.AllPlayerControls)
                 {
-                    KickPlayer(player, playerName);
+                    // Skip the host themselves
+                    if (player.IsLocal) continue;
+
+                    string playerName = player.Data.PlayerName;
+
+                    if (NameChecker.IsBanned(playerName, out string matchedWord))
+                    {
+                        KickPlayer(player, playerName);
+                    }
                 }
             }
-        }
 
-        private static void KickPlayer(PlayerControl player, string playerName)
-        {
-            // Logga i konsolen
-            BepInEx.Logging.Logger.Sources[0]?.LogInfo(
-                $"[NameFilter] Kickar spelare med otillåtet namn: {playerName}"
-            );
+            private static void KickPlayer(PlayerControl player, string playerName)
+            {
+                // Log to console
+                BepInEx.Logging.Logger.Sources[0]?.LogInfo(
+                    $"[NameFilter] Kicking player with disallowed name: {playerName}"
+                );
 
-            // Skicka kick via Among Us inbyggda system
-            AmongUsClient.Instance.KickPlayer(player.GetClientId(), false);
+                // Kick via Among Us built-in system
+                AmongUsClient.Instance.KickPlayer(player.GetClientId(), false);
 
-            // Visa meddelande i chatten för alla i lobbyn
-            HudManager.Instance.Chat.AddChat(
-                PlayerControl.LocalPlayer,
-                $"[NameFilter] {playerName} kickades på grund av otillåtet namn."
-            );
+                // Show message in chat - only visible to host
+                HudManager.Instance.Chat.AddChat(
+                    PlayerControl.LocalPlayer,
+                    $"[NameFilter] {playerName} was kicked due to a disallowed name."
+                );
+            }
         }
     }
 }
