@@ -3,6 +3,7 @@ using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
 using UnityEngine;
 using System.Collections.Generic;
+using InnerNet;
 
 namespace NameFilter
 {
@@ -60,7 +61,6 @@ namespace NameFilter
         {
             public static void Prefix(PlayerControl __instance, string name)
             {
-                // Save old name before it changes
                 if (!PreviousNames.ContainsKey(__instance.OwnerId))
                     PreviousNames[__instance.OwnerId] = __instance.Data.PlayerName;
             }
