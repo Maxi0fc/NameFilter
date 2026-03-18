@@ -18,7 +18,6 @@ namespace NameFilter
         internal static Harmony Harmony = new Harmony(PluginGuid);
         internal static BepInEx.Logging.ManualLogSource? Logger;
 
-        // Stores previous names per client ID
         internal static Dictionary<int, string> PreviousNames = new Dictionary<int, string>();
 
         public override void Load()
@@ -28,15 +27,13 @@ namespace NameFilter
             Log.LogInfo($"{PluginName} {PluginVersion} loaded!");
         }
 
-        // Kicks players with banned names when joining
         [HarmonyPatch(typeof(AmongUsClient), nameof(AmongUsClient.OnPlayerJoined))]
         public static class PlayerJoinPatch
         {
             public static void Postfix(AmongUsClient __instance, [HarmonyArgument(0)] ClientData client)
             {
                 if (!AmongUsClient.Instance.AmHost) return;
-                if (client.Character == null) return;
-                if (client.Character.AmOwner) return;
+                if (client.Id == AmongUsClient.Instance.ClientId) return;
 
                 string playerName = client.PlayerName;
                 PreviousNames[client.Id] = playerName;
@@ -49,13 +46,12 @@ namespace NameFilter
 
                     HudManager.Instance.Chat.AddChat(
                         PlayerControl.LocalPlayer,
-                        $"[NameFilter] {playerName} was kicked due to a disallowed name."
+                        $"[NameFilter] <color=#FF0000>{playerName} was kicked due to a disallowed name.</color>"
                     );
                 }
             }
         }
 
-        // Warns host when a player changes to a banned name in lobby
         [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.RpcSetName))]
         public static class PlayerNameChangePatch
         {
@@ -82,7 +78,7 @@ namespace NameFilter
 
                     HudManager.Instance.Chat.AddChat(
                         PlayerControl.LocalPlayer,
-                        $"[NameFilter] Warning: {oldName} changed their name to {name} which is disallowed."
+                        $"[NameFilter] Warning: <color=#FF0000>{oldName}</color> changed their name to <color=#FF0000>{name}</color> which is disallowed."
                     );
                 }
             }
