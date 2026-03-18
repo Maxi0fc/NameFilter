@@ -28,6 +28,12 @@ namespace NameFilter
             Log.LogInfo($"{PluginName} {PluginVersion} loaded!");
         }
 
+        private static string Capitalize(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return s;
+            return char.ToUpper(s[0]) + s.Substring(1);
+        }
+
         // Kicks players with banned names when joining
         [HarmonyPatch(typeof(AmongUsClient), nameof(AmongUsClient.OnPlayerJoined))]
         public static class PlayerJoinPatch
@@ -51,7 +57,7 @@ namespace NameFilter
                     MiscUtils.AddFakeChat(
                         PlayerControl.LocalPlayer.Data,
                         "<color=#FF0000>NameFilter</color>",
-                        $"<color=#FF0000>{playerName}</color> was kicked. Name flagged as {label}."
+                        $"A player was kicked. Name flagged as {label}."
                     );
                 }
             }
@@ -87,7 +93,7 @@ namespace NameFilter
                     MiscUtils.AddFakeChat(
                         PlayerControl.LocalPlayer.Data,
                         "<color=#FF0000>NameFilter Warning</color>",
-                        $"<color=#FF0000>{oldName}</color>\nchanged their name to {label} which is banned."
+                        $"{oldName} {Capitalize("changed")} their name to {label} which is banned."
                     );
                 }
             }

@@ -6,7 +6,6 @@ using System.Text.RegularExpressions;
 /// </summary>
 public static class NameChecker
 {
-    // Normalize leetspeak and common substitutions
     private static string Normalize(string input)
     {
         string s = input.ToLower().Trim();
@@ -33,8 +32,9 @@ public static class NameChecker
              .Replace("|", "l")
              .Replace("2", "z");
 
-        // Remove repeated characters (e.g. "niiigger" -> "niger")
-        s = Regex.Replace(s, @"(.)\1+", "$1");
+        // Only remove repeated characters for words longer than 3 chars
+        // This prevents "kkk" -> "k" breaking short words
+        s = Regex.Replace(s, @"(.)\1{2,}", "$1$1");
 
         return s;
     }
