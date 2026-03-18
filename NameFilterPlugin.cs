@@ -2,6 +2,7 @@ using BepInEx;
 using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace NameFilter
 {
@@ -16,6 +17,9 @@ namespace NameFilter
         internal static Harmony Harmony = new Harmony(PluginGuid);
         internal static BepInEx.Logging.ManualLogSource? Logger;
 
+        // Stores previous names per player ID
+        internal static Dictionary<int, string> PreviousNames = new Dictionary<int, string>();
+
         public override void Load()
         {
             Logger = Log;
@@ -23,39 +27,63 @@ namespace NameFilter
             Log.LogInfo($"{PluginName} {PluginVersion} loaded!");
         }
 
-        [HarmonyPatch(typeof(LobbyBehaviour), nameof(LobbyBehaviour.Start))]
+        // Kicks players with banned names when joining
+        [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.HandleJoinedGame))]
         public static class PlayerJoinPatch
         {
-            public static void Postfix(LobbyBehaviour __instance)
+            public static void Postfix(PlayerControl instance)
             {
                 if (!AmongUsClient.Instance.AmHost) return;
+                if (instance.AmOwner) return;
 
-                foreach (PlayerControl player in PlayerControl.AllPlayerControls)
+                string playerName = instance.Data.PlayerName;
+                PreviousNames[instance.OwnerId] = playerName;
+
+                if (NameChecker.IsBanned(playerName, out string matchedWord))
                 {
-                    if (player.AmOwner) continue;
+                    Logger?.LogInfo($"[NameFilter] Kicking player with disallowed name: {playerName}");
 
-                    string playerName = player.Data.PlayerName;
+                    AmongUsClient.Instance.KickPlayer(instance.OwnerId, false);
 
-                    if (NameChecker.IsBanned(playerName, out string matchedWord))
-                    {
-                        KickPlayer(player, playerName);
-                    }
+                    HudManager.Instance.Chat.AddChat(
+                        PlayerControl.LocalPlayer,
+                        $"[NameFilter] {playerName} was kicked due to a disallowed name."
+                    );
                 }
             }
+        }
 
-            private static void KickPlayer(PlayerControl player, string playerName)
+        // Warns host when a player changes to a banned name in lobby
+        [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.RpcSetName))]
+        public static class PlayerNameChangePatch
+        {
+            public static void Prefix(PlayerControl instance, string name)
             {
-                NameFilterPlugin.Logger?.LogInfo(
-                    $"[NameFilter] Kicking player with disallowed name: {playerName}"
-                );
+                // Save old name before it changes
+                if (!PreviousNames.ContainsKey(instance.OwnerId))
+                    PreviousNames[instance.OwnerId] = instance.Data.PlayerName;
+            }
 
-                int clientId = player.GetComponent<PlayerControl>().OwnerId;
-                AmongUsClient.Instance.KickPlayer(clientId, false);
+            public static void Postfix(PlayerControl instance, string name)
+            {
+                if (!AmongUsClient.Instance.AmHost) return;
+                if (instance.AmOwner) return;
 
-                HudManager.Instance.Chat.AddChat(
-                    PlayerControl.LocalPlayer,
-                    $"[NameFilter] {playerName} was kicked due to a disallowed name."
-                );
+                string oldName = PreviousNames.ContainsKey(instance.OwnerId)
+                    ? PreviousNames[instance.OwnerId]
+                    : "Unknown";
+
+                PreviousNames[instance.OwnerId] = name;
+
+                if (NameChecker.IsBanned(name, out string matchedWord))
+                {
+                    Logger?.LogInfo($"[NameFilter] Player changed to banned name: {name}");
+
+                    HudManager.Instance.Chat.AddChat(
+                        PlayerControl.LocalPlayer,
+                        $"[NameFilter] Warning: {oldName} changed their name to {name} which is disallowed."
+                    );
+                }
             }
         }
     }
