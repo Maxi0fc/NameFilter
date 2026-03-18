@@ -1,4 +1,4 @@
-﻿using BepInEx;
+using BepInEx;
 using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
 using UnityEngine;
@@ -12,8 +12,8 @@ namespace NameFilter
     [BepInProcess("Among Us.exe")]
     public class NameFilterPlugin : BasePlugin
     {
-        public const string PluginGuid = "com.namefilter.plugin";
-        public const string PluginName = "NameFilter";
+        public const string PluginGuid    = "com.namefilter.plugin";
+        public const string PluginName    = "NameFilter";
         public const string PluginVersion = "1.0.0";
 
         internal static Harmony Harmony = new Harmony(PluginGuid);
@@ -28,6 +28,7 @@ namespace NameFilter
             Log.LogInfo($"{PluginName} {PluginVersion} loaded!");
         }
 
+        // Kicks players with banned names when joining
         [HarmonyPatch(typeof(AmongUsClient), nameof(AmongUsClient.OnPlayerJoined))]
         public static class PlayerJoinPatch
         {
@@ -39,21 +40,24 @@ namespace NameFilter
                 string playerName = client.PlayerName;
                 PreviousNames[client.Id] = playerName;
 
-                if (NameChecker.IsBanned(playerName, out string matchedWord))
+                if (NameChecker.IsBanned(playerName, out string id, out var severity))
                 {
-                    Logger?.LogInfo($"[NameFilter] Kicking player with disallowed name: {playerName}");
+                    string label = NameChecker.GetChatLabel(id, severity);
+
+                    Logger?.LogInfo($"[NameFilter] Player \"{playerName}\" joined with banned name {label}");
 
                     AmongUsClient.Instance.KickPlayer(client.Id, false);
 
                     MiscUtils.AddFakeChat(
                         PlayerControl.LocalPlayer.Data,
                         "<color=#FF0000>NameFilter</color>",
-                        $"<color=#FF0000>{playerName}</color> was kicked due to a disallowed name."
+                        $"<color=#FF0000>{playerName}</color> was kicked. Name flagged as {label}."
                     );
                 }
             }
         }
 
+        // Warns host when a player changes to a banned name in lobby
         [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.RpcSetName))]
         public static class PlayerNameChangePatch
         {
@@ -74,14 +78,16 @@ namespace NameFilter
 
                 PreviousNames[__instance.OwnerId] = name;
 
-                if (NameChecker.IsBanned(name, out string matchedWord))
+                if (NameChecker.IsBanned(name, out string id, out var severity))
                 {
-                    Logger?.LogInfo($"[NameFilter] Player changed to banned name: {name}");
+                    string label = NameChecker.GetChatLabel(id, severity);
+
+                    Logger?.LogInfo($"[NameFilter] Player \"{oldName}\" changed name to \"{name}\" {label}");
 
                     MiscUtils.AddFakeChat(
                         PlayerControl.LocalPlayer.Data,
                         "<color=#FF0000>NameFilter Warning</color>",
-                        $"<color=#FF0000>{oldName}</color>\nchanged their name to <color=#FF0000>{name}</color>\nwhich is disallowed."
+                        $"<color=#FF0000>{oldName}</color>\nchanged their name to {label} which is banned."
                     );
                 }
             }
