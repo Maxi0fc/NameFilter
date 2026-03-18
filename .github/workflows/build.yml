@@ -1,0 +1,32 @@
+name: Build NameFilter
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 6
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '6.0.x'
+
+      - name: Restore NuGet packages
+        run: dotnet restore NameFilter.csproj
+
+      - name: Build
+        run: dotnet build NameFilter.csproj --configuration Release --no-restore
+
+      - name: Upload DLL as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NameFilter
+          path: bin/Release/net6.0/NameFilter.dll
