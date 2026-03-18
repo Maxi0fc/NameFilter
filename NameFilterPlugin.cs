@@ -14,7 +14,7 @@ namespace NameFilter
         public const string PluginVersion = "1.0.0";
 
         internal static Harmony Harmony = new Harmony(PluginGuid);
-        internal static BepInEx.Logging.ManualLogSource Logger;
+        internal static BepInEx.Logging.ManualLogSource? Logger;
 
         public override void Load()
         {
@@ -32,7 +32,6 @@ namespace NameFilter
 
                 foreach (PlayerControl player in PlayerControl.AllPlayerControls)
                 {
-                    // Skip the host themselves
                     if (player.AmOwner) continue;
 
                     string playerName = player.Data.PlayerName;
@@ -50,7 +49,8 @@ namespace NameFilter
                     $"[NameFilter] Kicking player with disallowed name: {playerName}"
                 );
 
-                AmongUsClient.Instance.KickPlayer(player.GetClientId(), false);
+                int clientId = player.GetComponent<PlayerControl>().OwnerId;
+                AmongUsClient.Instance.KickPlayer(clientId, false);
 
                 HudManager.Instance.Chat.AddChat(
                     PlayerControl.LocalPlayer,
