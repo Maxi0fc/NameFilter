@@ -14,28 +14,26 @@ namespace NameFilter
         public const string PluginVersion = "1.0.0";
 
         internal static Harmony Harmony = new Harmony(PluginGuid);
+        internal static BepInEx.Logging.ManualLogSource Logger;
 
         public override void Load()
         {
+            Logger = Log;
             Harmony.PatchAll();
             Log.LogInfo($"{PluginName} {PluginVersion} loaded!");
         }
 
-        /// <summary>
-        /// Hooks into LobbyBehaviour.Start and checks player names when the lobby starts.
-        /// </summary>
         [HarmonyPatch(typeof(LobbyBehaviour), nameof(LobbyBehaviour.Start))]
         public static class PlayerJoinPatch
         {
             public static void Postfix(LobbyBehaviour __instance)
             {
-                // Only the host should run the filter
                 if (!AmongUsClient.Instance.AmHost) return;
 
                 foreach (PlayerControl player in PlayerControl.AllPlayerControls)
                 {
                     // Skip the host themselves
-                    if (player.IsLocal) continue;
+                    if (player.AmOwner) continue;
 
                     string playerName = player.Data.PlayerName;
 
@@ -48,15 +46,12 @@ namespace NameFilter
 
             private static void KickPlayer(PlayerControl player, string playerName)
             {
-                // Log to console
-                BepInEx.Logging.Logger.Sources[0]?.LogInfo(
+                NameFilterPlugin.Logger?.LogInfo(
                     $"[NameFilter] Kicking player with disallowed name: {playerName}"
                 );
 
-                // Kick via Among Us built-in system
                 AmongUsClient.Instance.KickPlayer(player.GetClientId(), false);
 
-                // Show message in chat - only visible to host
                 HudManager.Instance.Chat.AddChat(
                     PlayerControl.LocalPlayer,
                     $"[NameFilter] {playerName} was kicked due to a disallowed name."
