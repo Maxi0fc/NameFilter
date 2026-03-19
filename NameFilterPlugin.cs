@@ -16,6 +16,10 @@ namespace NameFilter
         public const string PluginName    = "NameFilter";
         public const string PluginVersion = "1.0.0";
 
+        // Set to true to see real banned names in chat (dev only!)
+        // Set to false before building public release
+        private const bool DevMode = false;
+
         internal static Harmony Harmony = new Harmony(PluginGuid);
         internal static BepInEx.Logging.ManualLogSource? Logger;
 
@@ -34,6 +38,11 @@ namespace NameFilter
             return char.ToUpper(s[0]) + s.Substring(1);
         }
 
+        private static string FormatLabel(string label)
+        {
+            return $"<b><color=#FF0000>{label}</color></b>";
+        }
+
         // Kicks players with banned names when joining
         [HarmonyPatch(typeof(AmongUsClient), nameof(AmongUsClient.OnPlayerJoined))]
         public static class PlayerJoinPatch
@@ -49,15 +58,21 @@ namespace NameFilter
                 if (NameChecker.IsBanned(playerName, out string id, out var severity))
                 {
                     string label = NameChecker.GetChatLabel(id, severity);
+                    string formattedLabel = FormatLabel(label);
 
                     Logger?.LogInfo($"[NameFilter] Player \"{playerName}\" joined with banned name {label}");
 
                     AmongUsClient.Instance.KickPlayer(client.Id, false);
 
+                    string kickMsg = DevMode
+                        ? $"A player was kicked. Name: \"{playerName}\" flagged as {formattedLabel}."
+                        : $"A player was kicked. Name flagged as {formattedLabel}.";
+
                     MiscUtils.AddFakeChat(
                         PlayerControl.LocalPlayer.Data,
                         "<color=#FF0000>NameFilter</color>",
-                        $"A player was kicked. Name flagged as {label}."
+                        kickMsg,
+                        altColors: true
                     );
                 }
             }
@@ -87,13 +102,19 @@ namespace NameFilter
                 if (NameChecker.IsBanned(name, out string id, out var severity))
                 {
                     string label = NameChecker.GetChatLabel(id, severity);
+                    string formattedLabel = FormatLabel(label);
 
                     Logger?.LogInfo($"[NameFilter] Player \"{oldName}\" changed name to \"{name}\" {label}");
+
+                    string warnMsg = DevMode
+                        ? $"<color=#FF0000>{oldName}</color> {Capitalize("changed")} their name to \"{name}\" {formattedLabel} which is banned."
+                        : $"<color=#FF0000>{oldName}</color> {Capitalize("changed")} their name to {formattedLabel} which is banned.";
 
                     MiscUtils.AddFakeChat(
                         PlayerControl.LocalPlayer.Data,
                         "<color=#FF0000>NameFilter Warning</color>",
-                        $"{oldName} {Capitalize("changed")} their name to {label} which is banned."
+                        warnMsg,
+                        altColors: true
                     );
                 }
             }
