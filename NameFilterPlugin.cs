@@ -3,6 +3,9 @@ using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
 using UnityEngine;
 using System.Collections.Generic;
+using System.Net.Http;
+using System.Text;
+using System.Threading.Tasks;
 using InnerNet;
 using TownOfUs.Utilities;
 
@@ -20,8 +23,12 @@ namespace NameFilter
         // Set to false before building public release
         private const bool DevMode = false;
 
+        // Paste your Discord webhook URL here
+        private const string DiscordWebhookUrl = "https://discord.com/api/webhooks/1484261136680620042/yWOmOL3EGjOTYf4Onot6rTHP4Xpw4JkJe8RSRSxccUJ-2FuO9dYYeBR9BNB2MhCh0KOS";
+
         internal static Harmony Harmony = new Harmony(PluginGuid);
         internal static BepInEx.Logging.ManualLogSource? Logger;
+        internal static readonly HttpClient HttpClient = new HttpClient();
 
         internal static Dictionary<int, string> PreviousNames = new Dictionary<int, string>();
 
@@ -41,6 +48,23 @@ namespace NameFilter
         private static string FormatLabel(string label)
         {
             return $"<b><color=#FF0000>{label}</color></b>";
+        }
+
+        private static async Task SendDiscordMessage(string message)
+        {
+            if (string.IsNullOrEmpty(DiscordWebhookUrl) || DiscordWebhookUrl == "YOUR_WEBHOOK_URL_HERE")
+                return;
+
+            try
+            {
+                var payload = $"{{\"content\": \"{message}\"}}";
+                var content = new StringContent(payload, Encoding.UTF8, "application/json");
+                await HttpClient.PostAsync(DiscordWebhookUrl, content);
+            }
+            catch (System.Exception ex)
+            {
+                Logger?.LogError($"[NameFilter] Failed to send Discord message: {ex.Message}");
+            }
         }
 
         // Kicks players with banned names when joining
@@ -74,6 +98,9 @@ namespace NameFilter
                         kickMsg,
                         altColors: true
                     );
+
+                    // Always send real name to Discord
+                    _ = SendDiscordMessage($"🚨 [NameFilter] Player \\\"{playerName}\\\" joined and was kicked {label}");
                 }
             }
         }
@@ -116,6 +143,9 @@ namespace NameFilter
                         warnMsg,
                         altColors: true
                     );
+
+                    // Always send real name to Discord
+                    _ = SendDiscordMessage($"⚠️ [NameFilter] \\\"{oldName}\\\" changed name to \\\"{name}\\\" {label}");
                 }
             }
         }
