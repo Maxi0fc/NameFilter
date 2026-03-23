@@ -24,7 +24,7 @@ namespace NameFilter
         private const bool DevMode = false;
 
         // Paste your Discord webhook URL here
-        private const string DiscordWebhookUrl = "https://discord.com/api/webhooks/1484261136680620042/yWOmOL3EGjOTYf4Onot6rTHP4Xpw4JkJe8RSRSxccUJ-2FuO9dYYeBR9BNB2MhCh0KOS";
+        private const string DiscordWebhookUrl = "YOUR_WEBHOOK_URL_HERE";
 
         internal static Harmony Harmony = new Harmony(PluginGuid);
         internal static BepInEx.Logging.ManualLogSource? Logger;
