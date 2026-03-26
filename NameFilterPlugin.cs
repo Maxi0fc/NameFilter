@@ -14,7 +14,7 @@ namespace NameFilter
     {
         public const string PluginGuid    = "com.namefilter.plugin";
         public const string PluginName    = "NameFilter";
-        public const string PluginVersion = "1.0.0";
+        public const string PluginVersion = "1.0.1";
 
         private const bool DevMode = false;
         private const string DiscordWebhookUrl = "YOUR_WEBHOOK_URL_HERE";
