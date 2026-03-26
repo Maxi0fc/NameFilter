@@ -16,22 +16,18 @@ namespace NameFilter
         public const string PluginName    = "NameFilter";
         public const string PluginVersion = "1.0.0";
 
-        // Set to true to see real banned names in chat (dev only!)
-        // Set to false before building public release
         private const bool DevMode = false;
-
-        // Paste your Discord webhook URL here
         private const string DiscordWebhookUrl = "YOUR_WEBHOOK_URL_HERE";
 
         internal static Harmony Harmony = new Harmony(PluginGuid);
         internal static BepInEx.Logging.ManualLogSource? Logger;
         internal static readonly System.Net.Http.HttpClient HttpClient = new System.Net.Http.HttpClient();
 
-        // Stores previous names per client ID
         internal static Dictionary<int, string> PreviousNames = new Dictionary<int, string>();
-
-        // Stores players who have already been warned about a name change
         internal static HashSet<int> WarnedPlayers = new HashSet<int>();
+
+        // Flag to prevent infinite loop when we reset the name
+        internal static bool IsResettingName = false;
 
         public override void Load()
         {
@@ -53,7 +49,7 @@ namespace NameFilter
 
         private static async System.Threading.Tasks.Task SendDiscordMessage(string message)
         {
-            if (string.IsNullOrEmpty(DiscordWebhookUrl) || DiscordWebhookUrl == "YOUR_WEBHOOK_URL_HERE")
+            if (string.IsNullOrEmpty(DiscordWebhookUrl) || DiscordWebhookUrl == "https://discord.com/api/webhooks/1484261136680620042/yWOmOL3EGjOTYf4Onot6rTHP4Xpw4JkJe8RSRSxccUJ-2FuO9dYYeBR9BNB2MhCh0KOS")
                 return;
 
             try
@@ -68,7 +64,6 @@ namespace NameFilter
             }
         }
 
-        // Kicks players with banned names when joining
         [HarmonyPatch(typeof(AmongUsClient), nameof(AmongUsClient.OnPlayerJoined))]
         public static class PlayerJoinPatch
         {
@@ -105,12 +100,13 @@ namespace NameFilter
             }
         }
 
-        // Handles name changes in lobby
         [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.RpcSetName))]
         public static class PlayerNameChangePatch
         {
             public static bool Prefix(PlayerControl __instance, string name)
             {
+                // Skip if we're the ones resetting the name
+                if (IsResettingName) return true;
                 if (!AmongUsClient.Instance.AmHost) return true;
                 if (__instance.AmOwner) return true;
 
@@ -125,7 +121,11 @@ namespace NameFilter
 
                     Logger?.LogInfo($"[NameFilter] Player \"{oldName}\" tried to change name to \"{name}\" {label}");
 
-                    // Check if player has been warned before
+                    // Reset the name back to old name for everyone including host
+                    IsResettingName = true;
+                    __instance.RpcSetName(oldName);
+                    IsResettingName = false;
+
                     if (WarnedPlayers.Contains(__instance.OwnerId))
                     {
                         // Ban on second attempt
@@ -142,7 +142,7 @@ namespace NameFilter
                     }
                     else
                     {
-                        // First attempt - warn and block name change
+                        // First attempt - warn
                         WarnedPlayers.Add(__instance.OwnerId);
 
                         MiscUtils.AddFakeChat(
@@ -155,7 +155,6 @@ namespace NameFilter
                         _ = SendDiscordMessage($"⚠️ [NameFilter] Player \\\"{oldName}\\\" tried to change name to \\\"{name}\\\" {label}");
                     }
 
-                    // Block the name change
                     return false;
                 }
 
@@ -167,3 +166,4 @@ namespace NameFilter
         }
     }
 }
+
