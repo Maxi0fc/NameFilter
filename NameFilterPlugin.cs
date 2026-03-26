@@ -3,9 +3,6 @@ using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
 using UnityEngine;
 using System.Collections.Generic;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
 using InnerNet;
 using TownOfUs.Utilities;
 
@@ -28,9 +25,13 @@ namespace NameFilter
 
         internal static Harmony Harmony = new Harmony(PluginGuid);
         internal static BepInEx.Logging.ManualLogSource? Logger;
-        internal static readonly HttpClient HttpClient = new HttpClient();
+        internal static readonly System.Net.Http.HttpClient HttpClient = new System.Net.Http.HttpClient();
 
+        // Stores previous names per client ID
         internal static Dictionary<int, string> PreviousNames = new Dictionary<int, string>();
+
+        // Stores players who have already been warned about a name change
+        internal static HashSet<int> WarnedPlayers = new HashSet<int>();
 
         public override void Load()
         {
@@ -50,7 +51,7 @@ namespace NameFilter
             return $"<b><color=#FF0000>{label}</color></b>";
         }
 
-        private static async Task SendDiscordMessage(string message)
+        private static async System.Threading.Tasks.Task SendDiscordMessage(string message)
         {
             if (string.IsNullOrEmpty(DiscordWebhookUrl) || DiscordWebhookUrl == "YOUR_WEBHOOK_URL_HERE")
                 return;
@@ -58,7 +59,7 @@ namespace NameFilter
             try
             {
                 var payload = $"{{\"content\": \"{message}\"}}";
-                var content = new StringContent(payload, Encoding.UTF8, "application/json");
+                var content = new System.Net.Http.StringContent(payload, System.Text.Encoding.UTF8, "application/json");
                 await HttpClient.PostAsync(DiscordWebhookUrl, content);
             }
             catch (System.Exception ex)
@@ -99,54 +100,69 @@ namespace NameFilter
                         altColors: true
                     );
 
-                    // Always send real name to Discord
                     _ = SendDiscordMessage($"🚨 [NameFilter] Player \\\"{playerName}\\\" joined and was kicked {label}");
                 }
             }
         }
 
-        // Warns host when a player changes to a banned name in lobby
+        // Handles name changes in lobby
         [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.RpcSetName))]
         public static class PlayerNameChangePatch
         {
-            public static void Prefix(PlayerControl __instance, string name)
+            public static bool Prefix(PlayerControl __instance, string name)
             {
-                if (!PreviousNames.ContainsKey(__instance.OwnerId))
-                    PreviousNames[__instance.OwnerId] = __instance.Data.PlayerName;
-            }
-
-            public static void Postfix(PlayerControl __instance, string name)
-            {
-                if (!AmongUsClient.Instance.AmHost) return;
-                if (__instance.AmOwner) return;
+                if (!AmongUsClient.Instance.AmHost) return true;
+                if (__instance.AmOwner) return true;
 
                 string oldName = PreviousNames.ContainsKey(__instance.OwnerId)
                     ? PreviousNames[__instance.OwnerId]
                     : "Unknown";
-
-                PreviousNames[__instance.OwnerId] = name;
 
                 if (NameChecker.IsBanned(name, out string id, out var severity))
                 {
                     string label = NameChecker.GetChatLabel(id, severity);
                     string formattedLabel = FormatLabel(label);
 
-                    Logger?.LogInfo($"[NameFilter] Player \"{oldName}\" changed name to \"{name}\" {label}");
+                    Logger?.LogInfo($"[NameFilter] Player \"{oldName}\" tried to change name to \"{name}\" {label}");
 
-                    string warnMsg = DevMode
-                        ? $"<color=#FF0000>{oldName}</color> {Capitalize("changed")} their name to \"{name}\" {formattedLabel} which is banned."
-                        : $"<color=#FF0000>{oldName}</color> {Capitalize("changed")} their name to {formattedLabel} which is banned.";
+                    // Check if player has been warned before
+                    if (WarnedPlayers.Contains(__instance.OwnerId))
+                    {
+                        // Ban on second attempt
+                        AmongUsClient.Instance.KickPlayer(__instance.OwnerId, true);
 
-                    MiscUtils.AddFakeChat(
-                        PlayerControl.LocalPlayer.Data,
-                        "<color=#FF0000>NameFilter Warning</color>",
-                        warnMsg,
-                        altColors: true
-                    );
+                        MiscUtils.AddFakeChat(
+                            PlayerControl.LocalPlayer.Data,
+                            "<color=#FF0000>NameFilter</color>",
+                            $"<color=#FF0000>{oldName}</color> was banned for repeatedly trying to use a banned name. Flagged as {formattedLabel}.",
+                            altColors: true
+                        );
 
-                    // Always send real name to Discord
-                    _ = SendDiscordMessage($"⚠️ [NameFilter] \\\"{oldName}\\\" changed name to \\\"{name}\\\" {label}");
+                        _ = SendDiscordMessage($"🚨 [NameFilter] Player \\\"{oldName}\\\" was banned for repeatedly trying to change to banned name \\\"{name}\\\" {label}");
+                    }
+                    else
+                    {
+                        // First attempt - warn and block name change
+                        WarnedPlayers.Add(__instance.OwnerId);
+
+                        MiscUtils.AddFakeChat(
+                            PlayerControl.LocalPlayer.Data,
+                            "<color=#FF0000>NameFilter Warning</color>",
+                            $"<color=#FF0000>{oldName}</color> {Capitalize("tried")} to change their name to {formattedLabel} which is banned.",
+                            altColors: true
+                        );
+
+                        _ = SendDiscordMessage($"⚠️ [NameFilter] Player \\\"{oldName}\\\" tried to change name to \\\"{name}\\\" {label}");
+                    }
+
+                    // Block the name change
+                    return false;
                 }
+
+                // Name is clean - update stored name and remove from warned list
+                PreviousNames[__instance.OwnerId] = name;
+                WarnedPlayers.Remove(__instance.OwnerId);
+                return true;
             }
         }
     }
