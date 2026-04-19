@@ -1,9 +1,8 @@
 using System;
 using System.Text;
 
-/// <summary>
-/// Words are base64 encoded to avoid plain text exposure in source code.
-/// </summary>
+
+
 public static class BannedNameList
 {
     public enum Severity
