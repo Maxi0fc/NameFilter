@@ -86,7 +86,7 @@ namespace NameFilter
                     }
                 };
 
-                var json    = Newtonsoft.Json.JsonConvert.SerializeObject(payload);
+                var json    = System.Text.Json.JsonSerializer.Serialize(payload);
                 var content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
                 await HttpClient.PostAsync(DiscordWebhookUrl, content);
             }
