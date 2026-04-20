@@ -14,10 +14,10 @@ namespace NameFilter
     {
         public const string PluginGuid    = "com.namefilter.plugin";
         public const string PluginName    = "NameFilter";
-        public const string PluginVersion = "1.0.1";
+        public const string PluginVersion = "1.0.3";
 
         private const bool DevMode = false;
-        private const string DiscordWebhookUrl = "YOUR_WEBHOOK_URL_HERE";
+        internal const string DiscordWebhookUrl = "https://discord.com/api/webhooks/1484261136680620042/yWOmOL3EGjOTYf4Onot6rTHP4Xpw4JkJe8RSRSxccUJ-2FuO9dYYeBR9BNB2MhCh0KOS";
 
         internal static Harmony Harmony = new Harmony(PluginGuid);
         internal static BepInEx.Logging.ManualLogSource? Logger;
@@ -26,7 +26,6 @@ namespace NameFilter
         internal static Dictionary<int, string> PreviousNames = new Dictionary<int, string>();
         internal static HashSet<int> WarnedPlayers = new HashSet<int>();
 
-        // Flag to prevent infinite loop when we reset the name
         internal static bool IsResettingName = false;
 
         public override void Load()
@@ -36,26 +35,59 @@ namespace NameFilter
             Log.LogInfo($"{PluginName} {PluginVersion} loaded!");
         }
 
-        private static string Capitalize(string s)
+        internal static string Capitalize(string s)
         {
             if (string.IsNullOrEmpty(s)) return s;
             return char.ToUpper(s[0]) + s.Substring(1);
         }
 
-        private static string FormatLabel(string label)
+        internal static string FormatLabel(string label)
         {
             return $"<b><color=#FF0000>{label}</color></b>";
         }
 
-        private static async System.Threading.Tasks.Task SendDiscordMessage(string message)
+        internal static async System.Threading.Tasks.Task SendDiscordEmbed(
+            string title,
+            int color,
+            string playerName,
+            string hostName,
+            string gameCode,
+            string wordId,
+            string severity,
+            string triggerName,
+            string emoji)
         {
-            if (string.IsNullOrEmpty(DiscordWebhookUrl) || DiscordWebhookUrl == "https://discord.com/api/webhooks/1484261136680620042/yWOmOL3EGjOTYf4Onot6rTHP4Xpw4JkJe8RSRSxccUJ-2FuO9dYYeBR9BNB2MhCh0KOS")
+            if (string.IsNullOrEmpty(DiscordWebhookUrl) || DiscordWebhookUrl == "YOUR_WEBHOOK_URL_HERE")
                 return;
 
             try
             {
-                var payload = $"{{\"content\": \"{message}\"}}";
-                var content = new System.Net.Http.StringContent(payload, System.Text.Encoding.UTF8, "application/json");
+                var payload = new
+                {
+                    embeds = new[]
+                    {
+                        new
+                        {
+                            title     = $"{emoji} {title}",
+                            color     = color,
+                            fields    = new object[]
+                            {
+                                new { name = "👑 Host",           value = hostName,    inline = true  },
+                                new { name = "🎮 Game Code",      value = gameCode,    inline = true  },
+                                new { name = "\u200B",            value = "\u200B",    inline = false },
+                                new { name = "🚫 Player",         value = playerName,  inline = true  },
+                                new { name = "🏷️ Word ID",        value = wordId,      inline = true  },
+                                new { name = "⚠️ Severity",       value = severity,    inline = true  },
+                                new { name = "💬 Triggered Name", value = $"||{triggerName}||", inline = false },
+                            },
+                            footer    = new { text = "NameFilter · Among Us Moderation" },
+                            timestamp = System.DateTime.UtcNow.ToString("o")
+                        }
+                    }
+                };
+
+                var json    = Newtonsoft.Json.JsonConvert.SerializeObject(payload);
+                var content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
                 await HttpClient.PostAsync(DiscordWebhookUrl, content);
             }
             catch (System.Exception ex)
@@ -77,8 +109,10 @@ namespace NameFilter
 
                 if (NameChecker.IsBanned(playerName, out string id, out var severity))
                 {
-                    string label = NameChecker.GetChatLabel(id, severity);
+                    string label          = NameChecker.GetChatLabel(id, severity);
                     string formattedLabel = FormatLabel(label);
+                    string hostName       = PlayerControl.LocalPlayer.name;
+                    string gameCode       = GameCode.IntToGameName(AmongUsClient.Instance.GameId);
 
                     Logger?.LogInfo($"[NameFilter] Player \"{playerName}\" joined with banned name {label}");
 
@@ -95,7 +129,17 @@ namespace NameFilter
                         altColors: true
                     );
 
-                    _ = SendDiscordMessage($"🚨 [NameFilter] Player \\\"{playerName}\\\" joined and was kicked {label}");
+                    _ = SendDiscordEmbed(
+                        title:       "Player kicked on join",
+                        color:       0xFFA500,
+                        playerName:  playerName,
+                        hostName:    hostName,
+                        gameCode:    gameCode,
+                        wordId:      id,
+                        severity:    severity.ToString(),
+                        triggerName: playerName,
+                        emoji:       "🚨"
+                    );
                 }
             }
         }
@@ -105,30 +149,27 @@ namespace NameFilter
         {
             public static bool Prefix(PlayerControl __instance, string name)
             {
-                // Skip if we're the ones resetting the name
                 if (IsResettingName) return true;
                 if (!AmongUsClient.Instance.AmHost) return true;
                 if (__instance.AmOwner) return true;
 
-                string oldName = PreviousNames.ContainsKey(__instance.OwnerId)
-                    ? PreviousNames[__instance.OwnerId]
-                    : "Unknown";
+                string oldName  = PreviousNames.ContainsKey(__instance.OwnerId) ? PreviousNames[__instance.OwnerId] : "Unknown";
+                string hostName = PlayerControl.LocalPlayer.name;
+                string gameCode = GameCode.IntToGameName(AmongUsClient.Instance.GameId);
 
                 if (NameChecker.IsBanned(name, out string id, out var severity))
                 {
-                    string label = NameChecker.GetChatLabel(id, severity);
+                    string label          = NameChecker.GetChatLabel(id, severity);
                     string formattedLabel = FormatLabel(label);
 
                     Logger?.LogInfo($"[NameFilter] Player \"{oldName}\" tried to change name to \"{name}\" {label}");
 
-                    // Reset the name back to old name for everyone including host
                     IsResettingName = true;
                     __instance.RpcSetName(oldName);
                     IsResettingName = false;
 
                     if (WarnedPlayers.Contains(__instance.OwnerId))
                     {
-                        // Ban on second attempt
                         AmongUsClient.Instance.KickPlayer(__instance.OwnerId, true);
 
                         MiscUtils.AddFakeChat(
@@ -138,11 +179,20 @@ namespace NameFilter
                             altColors: true
                         );
 
-                        _ = SendDiscordMessage($"🚨 [NameFilter] Player \\\"{oldName}\\\" was banned for repeatedly trying to change to banned name \\\"{name}\\\" {label}");
+                        _ = SendDiscordEmbed(
+                            title:       "Player banned for repeated violation",
+                            color:       0xFF0000,
+                            playerName:  oldName,
+                            hostName:    hostName,
+                            gameCode:    gameCode,
+                            wordId:      id,
+                            severity:    severity.ToString(),
+                            triggerName: name,
+                            emoji:       "🔨"
+                        );
                     }
                     else
                     {
-                        // First attempt - warn
                         WarnedPlayers.Add(__instance.OwnerId);
 
                         MiscUtils.AddFakeChat(
@@ -152,13 +202,22 @@ namespace NameFilter
                             altColors: true
                         );
 
-                        _ = SendDiscordMessage($"⚠️ [NameFilter] Player \\\"{oldName}\\\" tried to change name to \\\"{name}\\\" {label}");
+                        _ = SendDiscordEmbed(
+                            title:       "Player warned for banned name",
+                            color:       0xFFFF00,
+                            playerName:  oldName,
+                            hostName:    hostName,
+                            gameCode:    gameCode,
+                            wordId:      id,
+                            severity:    severity.ToString(),
+                            triggerName: name,
+                            emoji:       "⚠️"
+                        );
                     }
 
                     return false;
                 }
 
-                // Name is clean - update stored name and remove from warned list
                 PreviousNames[__instance.OwnerId] = name;
                 WarnedPlayers.Remove(__instance.OwnerId);
                 return true;
@@ -166,4 +225,3 @@ namespace NameFilter
         }
     }
 }
-
